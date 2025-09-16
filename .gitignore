@@ -1,0 +1,7 @@
+tmp/
+.vs/
+bin/
+obj/
+*.user
+*.swp
+*.suo
