@@ -48,8 +48,8 @@ var ctx = new CorePipelineContext { RepositoryUrl = repoUrl, WorkingDirectory = 
 Console.WriteLine("[Runner] Starting jobs (monadic chain)...");
 var cancel = CancellationToken.None;
 var result = await ctx
-    .RunJob(new CloneJob(ctx), cancel)
-    .ThenJob(_ => new CleanupJob(ctx, skipDeletion: keep), c => c, cancel);
+    .RunContextJob<CorePipelineContext>(new CloneJob(), cancel)
+    .ThenContextJob(c => new CleanupJob(skipDeletion: keep), cancel);
 
 if (!result.Success)
 {

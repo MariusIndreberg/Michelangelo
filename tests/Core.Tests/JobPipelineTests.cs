@@ -13,25 +13,28 @@ class FlagContext : Context
     public bool BExecuted { get; set; }
 }
 
-class RecordingJob : IJob
+class RecordingContextJob<TCtx> : IContextJob<TCtx, TCtx> where TCtx : FlagContext
 {
-    private readonly Action _action;
-    public RecordingJob(Action action) => _action = action;
-    public Task RunAsync(CancellationToken cancellationToken)
+    private readonly Action<TCtx> _action;
+    public RecordingContextJob(Action<TCtx> action) => _action = action;
+    public Task<ContextResult<TCtx>> RunAsync(TCtx context, CancellationToken cancellationToken)
     {
-        _action();
-        return Task.CompletedTask;
+        _action(context);
+        var diag = new DiagnosticsLog();
+        diag.Info("RecordingContextJob executed");
+        return Task.FromResult(ContextResult<TCtx>.FromSuccess(context, diag));
     }
 }
 
-class FailingJob : IJob
+class FailingContextJob<TCtx> : IContextJob<TCtx, TCtx> where TCtx : FlagContext
 {
-    private readonly Action _beforeThrow;
-    public FailingJob(Action beforeThrow) => _beforeThrow = beforeThrow;
-    public Task RunAsync(CancellationToken cancellationToken)
+    private readonly Action<TCtx> _before;
+    public FailingContextJob(Action<TCtx> before) => _before = before;
+    public Task<ContextResult<TCtx>> RunAsync(TCtx context, CancellationToken cancellationToken)
     {
-        _beforeThrow();
-        throw new InvalidOperationException("boom");
+        _before(context);
+        var ex = new InvalidOperationException("boom");
+        return Task.FromResult(ContextResult<TCtx>.FromError(context, ex));
     }
 }
 
@@ -41,14 +44,11 @@ public class JobPipelineTests
     public async Task FailureShortCircuitsSecondJob()
     {
         var ctx = new FlagContext();
-        var first = new FailingJob(() => ctx.AExecuted = true);
-        var second = new RecordingJob(() => ctx.BExecuted = true);
-
         var r = await ctx
-            .RunJob(first)
-            .ThenJob(_ => second, c => c);
+            .RunContextJob<FlagContext>(new FailingContextJob<FlagContext>(c => c.AExecuted = true))
+            .ThenContextJob(c => new RecordingContextJob<FlagContext>(c2 => c2.BExecuted = true));
 
-        Assert.False(r.Success);
+    Assert.False(r.Success);
         Assert.True(ctx.AExecuted);
         Assert.False(ctx.BExecuted);
     }

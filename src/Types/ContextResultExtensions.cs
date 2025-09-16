@@ -2,58 +2,61 @@ namespace Michelangelo.Types;
 
 public static class ContextResultExtensions
 {
-    public static async Task<ContextResult<TContext>> RunJob<TContext>(this TContext ctx, IJob job, CancellationToken ct = default)
-        where TContext : Context
+    // Start a pipeline with an initial context job (input == output context type for first step)
+    public static Task<ContextResult<TContext>> RunContextJob<TContext>(this TContext ctx, IContextJob<TContext, TContext> job, CancellationToken ct = default)
+        where TContext : Context => job.RunAsync(ctx, ct);
+
+    // Start a pipeline with an initial context job that changes the context type
+    public static Task<ContextResult<TOut>> RunContextJob<TIn, TOut>(this TIn ctx, IContextJob<TIn, TOut> job, CancellationToken ct = default)
+        where TIn : Context
+        where TOut : Context => job.RunAsync(ctx, ct);
+
+    // Context -> Context job chaining (jobs that themselves produce a new ContextResult<TOut>)
+    public static async Task<ContextResult<TOut>> ThenContextJob<TIn, TOut>(this Task<ContextResult<TIn>> prevTask, Func<TIn, IContextJob<TIn, TOut>> jobFactory, CancellationToken ct = default)
+        where TIn : Context
+        where TOut : Context
     {
-        var diag = new DiagnosticsLog();
-        diag.Info($"Running job {job.GetType().Name}");
+        var prev = await prevTask.ConfigureAwait(false);
+        if (!prev.Success)
+        {
+            return ContextResult<TOut>.FromError((TOut)(object)prev.Context, prev.Error ?? new InvalidOperationException("Previous context step failed"), prev.Diagnostics);
+        }
+        var job = jobFactory(prev.Context);
+        ContextResult<TOut> next;
         try
         {
-            await job.RunAsync(ct).ConfigureAwait(false);
-            diag.Info($"Job {job.GetType().Name} succeeded");
-            return ContextResult<TContext>.FromSuccess(ctx, diag);
+            next = await job.RunAsync(prev.Context, ct).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            return ContextResult<TContext>.FromError(ctx, ex, diag);
+            return ContextResult<TOut>.FromError((TOut)(object)prev.Context, ex, prev.Diagnostics);
         }
-    }
-
-    public static async Task<ContextResult<TNext>> ThenJob<TCurrent, TNext>(this Task<ContextResult<TCurrent>> previousTask, Func<TCurrent, IJob> jobFactory, Func<TCurrent, TNext> contextProjector, CancellationToken ct = default)
-        where TCurrent : Context
-        where TNext : Context
-    {
-        var prev = await previousTask.ConfigureAwait(false);
-        if (!prev.Success)
-        {
-            return ContextResult<TNext>.FromError(contextProjector(prev.Context), prev.Error ?? new InvalidOperationException("Previous job failed"), prev.Diagnostics);
-        }
-        var nextCtx = contextProjector(prev.Context);
-        var job = jobFactory(prev.Context);
-        var result = await nextCtx.RunJob(job, ct).ConfigureAwait(false);
         // Merge diagnostics
-        if (prev.Diagnostics != null && result.Diagnostics != null)
+        if (prev.Diagnostics != null && next.Diagnostics != null)
         {
             var merged = new DiagnosticsLog();
             merged.Append(prev.Diagnostics);
-            merged.Append(result.Diagnostics);
-            return new ContextResult<TNext>
+            merged.Append(next.Diagnostics);
+            next = new ContextResult<TOut>
             {
-                Context = result.Context,
-                Success = result.Success,
-                Error = result.Error,
-                CompletedUtc = result.CompletedUtc,
+                Context = next.Context,
+                Success = next.Success,
+                Error = next.Error,
+                CompletedUtc = next.CompletedUtc,
                 Diagnostics = merged
             };
         }
-        if (result.Diagnostics == null) return new ContextResult<TNext>
+        else if (prev.Diagnostics != null && next.Diagnostics == null)
         {
-            Context = result.Context,
-            Success = result.Success,
-            Error = result.Error,
-            CompletedUtc = result.CompletedUtc,
-            Diagnostics = prev.Diagnostics
-        };
-        return result;
+            next = new ContextResult<TOut>
+            {
+                Context = next.Context,
+                Success = next.Success,
+                Error = next.Error,
+                CompletedUtc = next.CompletedUtc,
+                Diagnostics = prev.Diagnostics
+            };
+        }
+    return next;
     }
 }

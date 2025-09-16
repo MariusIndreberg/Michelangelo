@@ -2,37 +2,43 @@ using Michelangelo.Types;
 
 namespace Core;
 
-public class CleanupJob : IJob
+public class CleanupJob : IContextJob<CorePipelineContext, CorePipelineContext>
 {
-    private readonly CorePipelineContext _ctx;
     private readonly bool _skip;
-    public CleanupJob(CorePipelineContext ctx, bool skipDeletion = false)
-    {
-        _ctx = ctx;
-        _skip = skipDeletion;
-    }
+    public CleanupJob(bool skipDeletion = false) => _skip = skipDeletion;
 
-    public async Task RunAsync(CancellationToken cancellationToken)
+    public async Task<ContextResult<CorePipelineContext>> RunAsync(CorePipelineContext ctx, CancellationToken cancellationToken)
     {
+        var diag = new DiagnosticsLog();
+        diag.Info("CleanupJob started");
         if (_skip)
         {
-            var msg = $"[CleanupJob] Skipping deletion of {_ctx.WorkingDirectory}";
+            var msg = $"[CleanupJob] Skipping deletion of {ctx.WorkingDirectory}";
             Console.WriteLine(msg);
-            _ctx.Info(msg);
-            return;
+            ctx.Info(msg);
+            diag.Info("Skipped deletion per flag");
+            return ContextResult<CorePipelineContext>.FromSuccess(ctx, diag);
         }
-        if (!Directory.Exists(_ctx.WorkingDirectory)) return;
-        Console.WriteLine($"[CleanupJob] Deleting {_ctx.WorkingDirectory}");
-        var success = await TryDeleteWithRetriesAsync(_ctx.WorkingDirectory, 5, cancellationToken).ConfigureAwait(false);
+        if (!Directory.Exists(ctx.WorkingDirectory))
+        {
+            diag.Warn("Working directory already missing; nothing to delete");
+            return ContextResult<CorePipelineContext>.FromSuccess(ctx, diag);
+        }
+        Console.WriteLine($"[CleanupJob] Deleting {ctx.WorkingDirectory}");
+        var success = await TryDeleteWithRetriesAsync(ctx.WorkingDirectory, 5, cancellationToken).ConfigureAwait(false);
         if (success)
         {
-            _ctx.Info("Cleanup deleted working directory");
+            ctx.Info("Cleanup deleted working directory");
+            diag.Info("Deletion succeeded");
+            return ContextResult<CorePipelineContext>.FromSuccess(ctx, diag);
         }
         else
         {
             var msg = "[CleanupJob][Warn] Gave up deleting directory after retries";
             Console.WriteLine(msg);
-            _ctx.Warn(msg);
+            ctx.Warn(msg);
+            diag.Warn(msg);
+            return ContextResult<CorePipelineContext>.FromSuccess(ctx, diag); // treat as non-fatal
         }
     }
 

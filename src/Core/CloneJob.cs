@@ -3,28 +3,29 @@ using Michelangelo.Types;
 
 namespace Core;
 
-public class CloneJob : IJob
+public class CloneJob : IContextJob<CorePipelineContext, CorePipelineContext>
 {
-    private readonly CorePipelineContext _ctx;
-    public CloneJob(CorePipelineContext ctx) => _ctx = ctx;
-
-    public async Task RunAsync(CancellationToken cancellationToken)
+    public async Task<ContextResult<CorePipelineContext>> RunAsync(CorePipelineContext ctx, CancellationToken cancellationToken)
     {
-        Console.WriteLine($"[CloneJob] Preparing clone target {_ctx.WorkingDirectory}");
-        await EnsureCleanDirectoryAsync(_ctx.WorkingDirectory, cancellationToken);
-        Console.WriteLine($"[CloneJob] Cloning {_ctx.RepositoryUrl} into {_ctx.WorkingDirectory}");
+        var diag = new DiagnosticsLog();
+        diag.Info("CloneJob started");
+        Console.WriteLine($"[CloneJob] Preparing clone target {ctx.WorkingDirectory}");
         try
         {
-            await RunGitAsync(["clone", "--depth", "1", _ctx.RepositoryUrl, _ctx.WorkingDirectory], cancellationToken);
-            _ctx.CloneSucceeded = true;
-            _ctx.CloneCompletedAt = DateTime.UtcNow;
-            _ctx.Info("Clone succeeded");
-            Console.WriteLine("[CloneJob] Clone complete");
+            await EnsureCleanDirectoryAsync(ctx.WorkingDirectory, cancellationToken);
+            Console.WriteLine($"[CloneJob] Cloning {ctx.RepositoryUrl} into {ctx.WorkingDirectory}");
+            await RunGitAsync(["clone", "--depth", "1", ctx.RepositoryUrl, ctx.WorkingDirectory], cancellationToken);
+            ctx.CloneSucceeded = true;
+            ctx.CloneCompletedAt = DateTime.UtcNow;
+            ctx.Info("Clone succeeded");
+            diag.Info("Clone completed successfully");
+            return ContextResult<CorePipelineContext>.FromSuccess(ctx, diag);
         }
         catch (Exception ex)
         {
-            _ctx.Error("Clone failed: " + ex.Message);
-            throw;
+            ctx.Error("Clone failed: " + ex.Message);
+            diag.Error("Clone failed: " + ex.Message);
+            return ContextResult<CorePipelineContext>.FromError(ctx, ex, diag);
         }
     }
 

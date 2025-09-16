@@ -159,3 +159,4 @@ public sealed class ContextResult<TContext> where TContext : Context
         };
     }
 }
+
