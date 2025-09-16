@@ -15,5 +15,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Core\Core.csproj" />
     <ProjectReference Include="..\..\src\Types\Types.csproj" />
+    <ProjectReference Include="..\..\src\LlmLib\LlmLib.csproj" />
   </ItemGroup>
 </Project>

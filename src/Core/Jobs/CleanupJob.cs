@@ -1,6 +1,6 @@
 using Michelangelo.Types;
 
-namespace Core;
+namespace Core.Jobs;
 
 public class CleanupJob : IContextJob<CorePipelineContext, CorePipelineContext>
 {
