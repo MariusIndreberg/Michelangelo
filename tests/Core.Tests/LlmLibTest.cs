@@ -40,6 +40,6 @@ public class LlmLibTest
     public async Task LlmTest()
     {
         var request = CreateChatCompletionModelRequest();
-        var result = await LLM.SendRequestAsync(request, true, CancellationToken.None);
+        var result = await LLM.SendRequestAsync(request, true, null, CancellationToken.None);
     }
 }
