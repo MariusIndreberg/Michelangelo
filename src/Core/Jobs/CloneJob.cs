@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using Michelangelo.Types;
 
-namespace Core;
+namespace Core.Jobs;
 
 public class CloneJob : IContextJob<CorePipelineContext, CorePipelineContext>
 {
