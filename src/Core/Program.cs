@@ -43,13 +43,17 @@ string UniqueWorkingDirectory(string baseName)
     }
 }
 var tempDir = UniqueWorkingDirectory(SafeRepoFolder(repoUrl));
-var ctx = new CorePipelineContext { RepositoryUrl = repoUrl, WorkingDirectory = tempDir };
+var ctx = new CorePipelineContext { RepositoryUrl = repoUrl, WorkingDirectory = tempDir, KeepWorkingDirectory = keep };
 
-Console.WriteLine("[Runner] Starting jobs (monadic chain)...");
+Console.WriteLine("[Runner] Building pipeline...");
+var pipeline = Pipeline.Start<CorePipelineContext>()
+    .ThenJob<CorePipelineContext, CloneJob>()
+    .ThenJob<CorePipelineContext, CleanupJob>()
+    .Build();
+
+Console.WriteLine("[Runner] Executing pipeline...");
 var cancel = CancellationToken.None;
-var result = await ctx
-    .RunContextJob<CorePipelineContext>(new CloneJob(), cancel)
-    .ThenContextJob(c => new CleanupJob(skipDeletion: keep), cancel);
+var result = await pipeline.ExecuteAsync(ctx, cancel);
 
 if (!result.Success)
 {

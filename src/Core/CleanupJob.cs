@@ -4,14 +4,11 @@ namespace Core;
 
 public class CleanupJob : IContextJob<CorePipelineContext, CorePipelineContext>
 {
-    private readonly bool _skip;
-    public CleanupJob(bool skipDeletion = false) => _skip = skipDeletion;
-
     public async Task<ContextResult<CorePipelineContext>> RunAsync(CorePipelineContext ctx, CancellationToken cancellationToken)
     {
         var diag = new DiagnosticsLog();
         diag.Info("CleanupJob started");
-        if (_skip)
+        if (ctx.KeepWorkingDirectory)
         {
             var msg = $"[CleanupJob] Skipping deletion of {ctx.WorkingDirectory}";
             Console.WriteLine(msg);

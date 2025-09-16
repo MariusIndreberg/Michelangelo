@@ -2,14 +2,11 @@ namespace Michelangelo.Types;
 
 public static class ContextResultExtensions
 {
-    // Start a pipeline with an initial context job (input == output context type for first step)
-    public static Task<ContextResult<TContext>> RunContextJob<TContext>(this TContext ctx, IContextJob<TContext, TContext> job, CancellationToken ct = default)
-        where TContext : Context => job.RunAsync(ctx, ct);
-
-    // Start a pipeline with an initial context job that changes the context type
-    public static Task<ContextResult<TOut>> RunContextJob<TIn, TOut>(this TIn ctx, IContextJob<TIn, TOut> job, CancellationToken ct = default)
+    // Overload: instantiate job that changes context type
+    public static Task<ContextResult<TOut>> RunContextJob<TIn, TOut, TJob>(this TIn ctx, CancellationToken ct = default)
         where TIn : Context
-        where TOut : Context => job.RunAsync(ctx, ct);
+        where TOut : Context
+        where TJob : IContextJob<TIn, TOut>, new() => new TJob().RunAsync(ctx, ct);
 
     // Context -> Context job chaining (jobs that themselves produce a new ContextResult<TOut>)
     public static async Task<ContextResult<TOut>> ThenContextJob<TIn, TOut>(this Task<ContextResult<TIn>> prevTask, Func<TIn, IContextJob<TIn, TOut>> jobFactory, CancellationToken ct = default)
@@ -59,4 +56,15 @@ public static class ContextResultExtensions
         }
     return next;
     }
+
+    // Overload: ThenContextJob specifying only job type (TIn -> TOut)
+    public static Task<ContextResult<TOut>> ThenContextJob<TIn, TOut, TJob>(this Task<ContextResult<TIn>> prevTask, CancellationToken ct = default)
+        where TIn : Context
+        where TOut : Context
+        where TJob : IContextJob<TIn, TOut>, new() => prevTask.ThenContextJob(_ => new TJob(), ct);
+
+    // Overload: same-type context job by job type
+    public static Task<ContextResult<TContext>> ThenContextJob<TContext, TJob>(this Task<ContextResult<TContext>> prevTask, CancellationToken ct = default)
+        where TContext : Context
+        where TJob : IContextJob<TContext, TContext>, new() => prevTask.ThenContextJob<TContext, TContext, TJob>(ct);
 }

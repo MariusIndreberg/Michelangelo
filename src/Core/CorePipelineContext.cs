@@ -11,6 +11,7 @@ public class CorePipelineContext : Context
     public bool CloneSucceeded { get; set; }
     public DateTime? CloneCompletedAt { get; set; }
     public DiagnosticsLog Diagnostics { get; } = new();
+    public bool KeepWorkingDirectory { get; set; }
 
     public void Info(string message) => Diagnostics.Info(message);
     public void Warn(string message) => Diagnostics.Warn(message);

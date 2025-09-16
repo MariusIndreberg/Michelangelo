@@ -22,7 +22,7 @@ class FinalContext : Context
     public string Upper { get; set; } = string.Empty;
 }
 
-class ToMidJob : IContextJob<StartContext, MidContext>
+class MidJob : IContextJob<StartContext, MidContext>
 {
     public Task<ContextResult<MidContext>> RunAsync(StartContext context, CancellationToken cancellationToken)
     {
@@ -33,7 +33,7 @@ class ToMidJob : IContextJob<StartContext, MidContext>
     }
 }
 
-class ToFinalJob : IContextJob<MidContext, FinalContext>
+class FinalJob : IContextJob<MidContext, FinalContext>
 {
     public Task<ContextResult<FinalContext>> RunAsync(MidContext context, CancellationToken cancellationToken)
     {
@@ -51,8 +51,8 @@ public class ContextChainTests
     {
         var start = new StartContext { Seed = "alpha" };
         var result = await start
-            .RunContextJob(new ToMidJob())
-            .ThenContextJob(c => new ToFinalJob());
+            .RunContextJob<StartContext, MidContext, MidJob>()
+            .ThenContextJob<MidContext, FinalContext, FinalJob>();
 
         Assert.True(result.Success);
         Assert.Equal("ALPHA:MID", result.Context.Upper);
