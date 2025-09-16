@@ -123,4 +123,61 @@ public class ExtendedPipelineTests
         Assert.True(res.Success);
         Assert.Same(start, res.Context);
     }
+
+    [Fact]
+    public async Task NestedFirstStageFailure_Stops()
+    {
+        var failingStage1 = Pipeline.Start<ExStart>()
+            .ThenJob<ExMid1, MarkerJob>()
+            .ThenJob<ExMid1, Enrich1>()
+            .ThenJob<ExMid1, Enrich2>()
+            .Build();
+        // Build a wrapper pipeline that forces failure inside first nested pipeline by injecting a failing job at end of stage1 replacement
+        var failingInject = Pipeline.Start<ExStart>()
+            .ThenJob<ExMid1, MarkerJob>()
+            .Build();
+        var failMid = Pipeline.Start<ExMid1>()
+            .ThenJob<ExMid2, FailingExJob>()
+            .Build();
+        var final = Pipeline.Start<ExMid2>()
+            .ThenJob<ExEnd, FinalizeJob>()
+            .Build();
+        var composite = Pipeline.Start<ExStart>()
+            .ThenPipeline<ExMid1, ExMid2>(failingInject, failMid) // failure occurs here
+            .ThenJob<ExEnd, FinalizeJob>() // should not execute
+            .Build();
+        var res = await composite.ExecuteAsync(new ExStart());
+        Assert.False(res.Success);
+        Assert.NotNull(res.Error);
+        Assert.DoesNotContain(res.Diagnostics!.Entries, e => e.Message.Contains("FinalizeJob"));
+    }
+
+    [Fact]
+    public async Task DiagnosticsMerge_FirstHasSecondNone()
+    {
+        // First stage produces diagnostics
+        var first = Pipeline.Start<ExStart>()
+            .ThenJob<ExMid1, MarkerJob>()
+            .Build();
+        // Second stage returns result without diagnostics (custom job)
+        var noDiagStage = new NoDiagPipeline();
+        var composite = Pipeline.Start<ExStart>()
+            .ThenPipeline<ExMid1, ExMid2>(first, noDiagStage)
+            .Build();
+        var res = await composite.ExecuteAsync(new ExStart());
+        Assert.True(res.Success);
+        Assert.NotNull(res.Diagnostics);
+        Assert.Contains(res.Diagnostics!.Entries, e => e.Message.Contains("MarkerJob"));
+    }
+}
+
+// Helper pipeline that converts ExMid1->ExMid2 without diagnostics
+class NoDiagPipeline : IPipeline<ExMid1, ExMid2>
+{
+    public Task<ContextResult<ExMid2>> ExecuteAsync(ExMid1 input, CancellationToken ct = default)
+    {
+        var mid2 = new ExMid2 { Trace = input.Trace + ":ND" };
+        // no diagnostics log
+        return Task.FromResult(new ContextResult<ExMid2>{ Context = mid2, Success = true, CompletedUtc = DateTime.UtcNow });
+    }
 }
