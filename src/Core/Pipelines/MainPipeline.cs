@@ -1,6 +1,7 @@
 using System;
 using Michelangelo.Types;
 using Core.Jobs;
+using Core.Contexts;
 
 namespace Core.Pipelines;
 
@@ -13,6 +14,7 @@ public static class MainPipeline
     {
         return Pipeline.Start<CorePipelineContext>()
             .ThenJob<CorePipelineContext, CloneJob>()
+            .ThenJob<CorePipelineContext, AnalyzeJob>()
             .ThenJob<CorePipelineContext, CleanupJob>()
             .Build();
     }

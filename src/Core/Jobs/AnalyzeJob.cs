@@ -6,6 +6,9 @@ public sealed class AnalyzeJob : IContextJob<CorePipelineContext, CorePipelineCo
 {
     public Task<ContextResult<CorePipelineContext>> RunAsync(CorePipelineContext context, CancellationToken cancellationToken)
     {
-        throw new NotImplementedException();
+        // Placeholder no-op analysis for now
+        var diag = new DiagnosticsLog();
+        diag.Info("AnalyzeJob (no-op)");
+        return Task.FromResult(ContextResult<CorePipelineContext>.FromSuccess(context, diag));
     }
 }
