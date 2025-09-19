@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Types\Types.csproj" />
+    <ProjectReference Include="..\LlmLib\LlmLib.csproj" />
   </ItemGroup>
 
 </Project>
