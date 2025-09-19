@@ -19,9 +19,11 @@ public sealed class AnalyzeJob : IContextJob<CorePipelineContext, CorePipelineCo
 
             var tool = new Tools.SearchRepoTool();
             var endpoints = await tool.FindEndpointsAsync(context.WorkingDirectory, cancellationToken).ConfigureAwait(false);
-            context.Endpoints.Clear();
-            context.Endpoints.AddRange(endpoints);
             diag.Info($"AnalyzeJob discovered {endpoints.Count} endpoint(s)");
+            foreach (var e in endpoints.Take(5))
+            {
+                diag.Info($"Endpoint: {e.HttpMethod} {e.Route} ({Path.GetFileName(e.SourceFile)})");
+            }
             return ContextResult<CorePipelineContext>.FromSuccess(context, diag);
         }
         catch (Exception ex)

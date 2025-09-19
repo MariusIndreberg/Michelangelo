@@ -56,10 +56,30 @@ public class SearchRepoTool
 			}
 		}
 
-		// Use LLM to enrich / validate endpoints (batch prompt)
-		if (candidates.Count == 0) return candidates;
+		// Fallback: if no HTTP-style endpoints, look for a program entry point to at least return one actionable root.
+		if (candidates.Count == 0)
+		{
+			var mainFile = Directory.EnumerateFiles(rootDirectory, "*.cs", SearchOption.AllDirectories)
+				.FirstOrDefault(f =>
+					!f.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar) &&
+					!f.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar) &&
+					File.ReadLines(f).Take(400).Any(l => l.Contains("static void Main") || l.Contains("static async Task Main") || l.Contains("WebApplication.CreateBuilder")));
+			if (mainFile != null)
+			{
+				candidates.Add(new EndpointInfo
+				{
+					HttpMethod = "MAIN",
+					Route = "/",
+					SourceFile = mainFile,
+					LineNumber = 1,
+					Summary = "Program entry point (no explicit HTTP endpoints detected)"
+				});
+				return candidates; // don't call LLM for a single synthetic entry
+			}
+			return candidates; // still empty
+		}
 
-		var prompt = BuildClassificationPrompt(candidates, rootDirectory);
+	var prompt = BuildClassificationPrompt(candidates, rootDirectory);
 		var request = new ModelRequest
 		{
 			Messages = new[]
